@@ -1,4 +1,4 @@
-﻿#define _CRT_SECURE_NO_WARNINGS
+#define _CRT_SECURE_NO_WARNINGS
 // 平台检测
 #ifdef _WIN32
 #define NOMINMAX  // 关键！！禁止Windows的min/max宏
@@ -13,7 +13,6 @@
 #include <string>
 #include <vector>
 #include <algorithm>
-#include "parallel_hashmap/phmap.h"
 #include <chrono>
 #include <sstream>  // 添加stringstream支持
 #include <csignal>
@@ -134,6 +133,16 @@ public:
 };
 
 ugraph read_graph_dimacs() {
+
+	char c;
+	// 跳过注释行
+	while ((c = getchar()) == 'c') {
+		// 跳过当前行的剩余部分
+		while (getchar() != '\n');
+	}
+	// 将读到的非'c'字符放回输入流
+	ungetc(c, stdin);
+
 	ui n, m; scanf("p ds %u %u", &n, &m);
 	vector<pii> es(m);
 	all_point = n;
@@ -153,7 +162,10 @@ ugraph read_graph() {
 
 ugraph read_graph_dimacs(istream& is) {
 	string line;
-	getline(is, line);
+	// 跳过开头的注释行
+	do {
+		getline(is, line);
+	} while (line.length() > 0 && line[0] == 'c');
 	ui n, m; sscanf(line.c_str(), "p ds %u %u", &n, &m);
 	vector<pii> es(m);
 	all_point = n;
@@ -555,7 +567,7 @@ public:
 	}
 
 	void new_reduce_2();
-	void init_reduction();
+	bool init_reduction();
 	bool reduce_single_dominator(ui u);
 	bool reduce_ignore(ui u);
 	bool reduce_subset(ui u);
@@ -930,7 +942,7 @@ vector<vector<ui>> countConnectedComponentsWithNodes(int n, const vector<pii>& r
 }
 
 // 初始化约简
-void CFeature_Info::init_reduction() {
+bool CFeature_Info::init_reduction() {
 	new_reduce_2(); // 双重约简
 	//cout << "约简规则完成 " << endl;
 	is_fix = vector<bool>(n, false);
@@ -951,6 +963,15 @@ void CFeature_Info::init_reduction() {
 				}
 			}
 		}
+	}
+	if(cnt_d == n) {
+		num = cnt_s;
+		global_data = D;
+		printf("%u\n", num);
+		for (ui i = 0; i < all_point; i++) {
+			if (global_data[i] == 1) printf("%u\n", i + 1);
+		}
+		return true;
 	}
 
 	robin_hood::unordered_set<ui> del_node;
@@ -977,6 +998,7 @@ void CFeature_Info::init_reduction() {
 
 		}
 	}
+	
 
 	auto filter_edges = [](const vector<pii>& edges, const robin_hood::unordered_set<ui>& del) {
 		vector<pii> res;
@@ -1069,13 +1091,14 @@ void CFeature_Info::init_reduction() {
 			[&](ui v) { return is_fix[v]; }),
 		unselected.end()
 	);
+	
 	/*if (cnt_d == n) {
 		cout << "支配完成" << endl;
 	}
 	else {
 		cout << "支配失败" << endl;
 	}*/
-
+	return false;
 }
 
 void CFeature_Info::check_redundancy_2() {
@@ -1119,9 +1142,11 @@ void iterated_greedy(ugraph& graph) {
 	// 初始解
 	//cout << "开始约简" << endl;
 	CFeature_Info CI(graph);
-	//cout << "##" << endl;
-	CI.init_reduction();
-
+	bool is_finish = CI.init_reduction();
+	if(is_finish) {
+		//cout << "全支配了" << endl;
+		return; // 全支配了，直接返回
+	}
 	//cout << "约简完毕,初始解生成" << CI.selected_no_must.size() << " " << CI.unselected.size() << endl;
 	CI.point_to_idx.resize(CI.n);
 	for (ui i = 0; i < CI.selected_no_must.size(); i++) {
@@ -1145,6 +1170,7 @@ void iterated_greedy(ugraph& graph) {
 		CI.local_improvement_3();
 	}
 	else {
+		
 		CI.local_improvement_2(); // 更强力的局部搜索
 	}
 
@@ -1368,7 +1394,7 @@ void CFeature_Info::local_improvement_2() {
 	int v_open, v_close;
 	InitialDelta();
 	check_redundancy_2();
-
+	
 	ui v_del = random_select(selected_no_must);
 	Close(v_del);
 	best_f = f = close_f;
@@ -1417,7 +1443,7 @@ void CFeature_Info::local_improvement_2() {
 				//auto max_it = std::max_element(std::begin(weight), std::end(weight), [](int a, int b) {
 					//return a < b; // 返回 true 表示 a 应该排在 b 前面
 					//});
-				//cout << "Best solution size: " << cnt_s << "|snt_D:" << cnt_d << "|iteration：" << iter << "| max_weight" << *max_it << endl;
+				//cout << "Best solution size: " << cnt_s << "|snt_D:" << cnt_d << "|iteration：" << iter << "| max_weight" << endl;
 				// 完成支配再删一个点
 
 			}
@@ -2214,6 +2240,7 @@ int main() {
 	//string name = "heuristic_";
 	//string back; cin >> back;
 	//ifstream ifs("C:\\Users\\28172\\Desktop\\ds\\heuristic\\" + name + back + ".gr");
+	//ifstream ifs("C:\\Users\\POJO\\Downloads\\connected_watts_strogatz_graph_10_8_0.28.gr");
 	//ugraph read = read_graph(ifs);
 	iterated_greedy(read);
 	//// 恢复默认处理器（可选）
